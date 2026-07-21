@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-redis = Redis(url=os.getenv("UPSTASH_REDIS_URL"), token=os.getenv("UPSTASH_REDIS_TOKEN"))
+redis = Redis(url=os.getenv("UPSTASH_REDIS_REST_URL"), token=os.getenv("UPSTASH_REDIS_REST_TOKEN"))
 
 RATE_LIMIT_PREFIX = "ratelimit:"
 MAX_REQUESTS = 10       # max creates allowed

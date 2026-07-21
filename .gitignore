@@ -1,2 +1,2 @@
 #database credencials
-database.env
+*.env

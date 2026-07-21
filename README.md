@@ -217,7 +217,7 @@ Latest load test results (published in `docs/load-test-report.md`):
 
 ## 🗺️ Roadmap
 
-- [ ] Core shorten + redirect (M1–M3)
+- [/] Core shorten + redirect (M1–M3)
 - [ ] Redis caching, rate limiting, expiry, custom aliases (M4–M7)
 - [ ] Malicious URL screening, auth, abuse reporting (M8–M10)
 - [ ] Async analytics, Snowflake ID generator (M11–M12)

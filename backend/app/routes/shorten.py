@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
 from app.models.short_link import ShortLink
-from app.utils.base62 import encode, decode
+from app.utils.base62 import encode
+from app.services.cache import set_link_cache
 
 router = APIRouter()
 
@@ -32,8 +34,13 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
 
         new_link.short_code = short_code
         db.commit()
-        db.refresh(new_link)    #populate the new_link object with the auto-generated id
-    except Exception:
+        #populate the new_link object with the auto-generated id
+        db.refresh(new_link)
+
+        # Cache the mapping
+        set_link_cache(short_code=new_link.short_code, long_url=new_link.long_url, is_active=new_link.is_active, expires_at=new_link.expires_at.isoformat() if new_link.expires_at else None,)
+    
+    except SQLAlchemyError:
         db.rollback()
         raise HTTPException(status_code=500, detail="Error occurred while creating short link")
 

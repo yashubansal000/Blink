@@ -50,3 +50,7 @@ Thumbs.db
 # test files
 backend/tests/__pycache__/
 backend/tests/test_*.py
+
+# unnecessary files
+*.bak
+plan.md

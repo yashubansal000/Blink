@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.routes import shorten, redirect
@@ -11,3 +12,10 @@ app = FastAPI(title="URL Shortener", version="1.0.0")
 
 app.include_router(shorten.router, prefix="/api", tags=["Shorten"])
 app.include_router(redirect.router, tags=["Redirect"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # needs to tighten to your actual frontend URL once deployed
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

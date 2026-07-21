@@ -42,3 +42,24 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
         short_code=short_code,
         short_url=f"{base_url}/{short_code}"
     )
+
+class LinkSummary(BaseModel):
+    short_code: str
+    long_url: str
+    created_at: str
+    click_count: int
+    is_active: bool
+
+@router.get("/links", response_model=list[LinkSummary])
+def list_links(db: Session = Depends(get_db)):
+    links = (db.query(ShortLink).order_by(ShortLink.created_at.desc()).limit(50).all())
+    return [
+        LinkSummary(
+            short_code=link.short_code,
+            long_url=link.long_url,
+            created_at=link.created_at.isoformat(),
+            click_count=link.click_count,
+            is_active=link.is_active
+        )
+        for link in links
+    ]

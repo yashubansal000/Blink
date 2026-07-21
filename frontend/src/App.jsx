@@ -1,122 +1,113 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect } from "react";
+import { shortenUrl, fetchLinks } from "./api";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [longUrl, setLongUrl] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [links, setLinks] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadLinks = async () => {
+    try {
+      const data = await fetchLinks();
+      setLinks(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function fetchInitialLinks() {
+      try {
+        const data = await fetchLinks();
+        if (!ignore) {
+          setLinks(data);
+        }
+      } catch (err) {
+        if (!ignore) {
+          console.error(err);
+        }
+      }
+    }
+    fetchInitialLinks();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setResult(null);
+    setLoading(true);
+    try {
+      const data = await shortenUrl(longUrl);
+      setResult(data);
+      setLongUrl("");
+      await loadLinks();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <div style={{ maxWidth: 600, margin: "40px auto", fontFamily: "sans-serif" }}>
+      <h1>URL Shortener</h1>
+
+      <form onSubmit={handleSubmit}>
+        <input
+          type="url"
+          required
+          placeholder="https://example.com/long/path"
+          value={longUrl}
+          onChange={(e) => setLongUrl(e.target.value)}
+          style={{ width: "70%", padding: 8 }}
+        />
+        <button type="submit" disabled={loading} style={{ padding: 8, marginLeft: 8 }}>
+          {loading ? "Shortening..." : "Shorten"}
         </button>
-      </section>
+      </form>
 
-      <div className="ticks"></div>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {result && (
+        <p>
+          Short URL:{" "}
+          <a href={result.short_url} target="_blank" rel="noreferrer">
+            {result.short_url}
+          </a>
+        </p>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <h2>Recent Links</h2>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left" }}>Code</th>
+            <th style={{ textAlign: "left" }}>Long URL</th>
+            <th style={{ textAlign: "left" }}>Clicks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {links.map((link) => (
+            <tr key={link.short_code}>
+              <td>{link.short_code}</td>
+              <td style={{ maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {link.long_url}
+              </td>
+              <td>{link.click_count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
-export default App
+export default App;

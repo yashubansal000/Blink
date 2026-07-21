@@ -12,6 +12,7 @@ from app.utils.base62 import encode
 from app.utils.network import get_client_ip
 from app.services.cache import set_link_cache, invalidate_link_cache
 from app.services.ratelimit import is_rate_limited
+from app.services.safebrowsing import is_malicious_url
 
 router = APIRouter()
 CUSTOM_ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -44,6 +45,12 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
         raise HTTPException(
             status_code=429,
             detail="TOO many links created. Please wait a minute and try again."
+        )
+    
+    if is_malicious_url(str(payload.long_url)):
+        raise HTTPException(
+            status_code=400,
+            detail="This URL has been flagged as unsafe by Google Safe Browsing and cannot be shortened.",
         )
     
     expires_at = payload.expires_at

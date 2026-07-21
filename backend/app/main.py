@@ -15,7 +15,7 @@ app.include_router(redirect.router, tags=["Redirect"])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # needs to tighten to your actual frontend URL once deployed
+    allow_origins=["https://blink-ivory-sigma.vercel.app/"], # needs to tighten to your actual frontend URL once deployed
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -12,7 +12,10 @@ app = FastAPI(title="URL Shortener", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://blink-ivory-sigma.vercel.app"], # needs to tighten to your actual frontend URL once deployed
+    allow_origins=[
+        "http://localhost:5173",
+        "https://blink-ivory-sigma.vercel.app",
+        ], # needs to tighten to your actual frontend URL once deployed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

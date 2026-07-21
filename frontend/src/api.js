@@ -1,12 +1,16 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-export async function shortenUrl(longUrl) {
+export async function shortenUrl(longUrl, expiresAt) {
+    const body = { long_url: longUrl };
+    if(expiresAt){
+        body.expires_at = new Date(expiresAt).toISOString();
+    }
     const res = await fetch(`${API_BASE}/api/shorten`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ long_url: longUrl }),
+        body: JSON.stringify(body),
     });
     if(!res.ok) {
         const err = await res.json().catch(() => ({}));

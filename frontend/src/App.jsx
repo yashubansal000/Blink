@@ -7,6 +7,7 @@ function App() {
   const [error, setError] = useState("");
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
 
   const loadLinks = async () => {
     try {
@@ -45,7 +46,10 @@ function App() {
     setResult(null);
     setLoading(true);
     try {
-      const data = await shortenUrl(longUrl);
+      const data = await shortenUrl(
+        longUrl, 
+        expiresAt || null
+      );
       setResult(data);
       setLongUrl("");
       await loadLinks();
@@ -72,6 +76,13 @@ function App() {
         <button type="submit" disabled={loading} style={{ padding: 8, marginLeft: 8 }}>
           {loading ? "Shortening..." : "Shorten"}
         </button>
+
+        <div style={{marginTop: 8}}>
+          <label>
+            Expires at (optional):{" "}
+            <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)}/>
+          </label>
+        </div>
       </form>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
@@ -92,6 +103,7 @@ function App() {
             <th style={{ textAlign: "left" }}>Code</th>
             <th style={{ textAlign: "left" }}>Long URL</th>
             <th style={{ textAlign: "left" }}>Clicks</th>
+            <th style={{ textAlign: "left" }}>Expires</th>
           </tr>
         </thead>
         <tbody>
@@ -102,6 +114,7 @@ function App() {
                 {link.long_url}
               </td>
               <td>{link.click_count}</td>
+              <td>{link.expires_at ? new Date(link.expires_at).toLocaleString(): "Never"}</td>
             </tr>
           ))}
         </tbody>

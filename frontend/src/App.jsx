@@ -8,6 +8,7 @@ function App() {
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+  const [customAlias, setCustomAlias] = useState("");
 
   const loadLinks = async () => {
     try {
@@ -48,7 +49,8 @@ function App() {
     try {
       const data = await shortenUrl(
         longUrl, 
-        expiresAt || null
+        expiresAt || null,
+        customAlias || null
       );
       setResult(data);
       setLongUrl("");
@@ -81,6 +83,13 @@ function App() {
           <label>
             Expires at (optional):{" "}
             <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)}/>
+          </label>
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <label>
+            Custom alias (optional):{" "}
+            <input type="text" placeholder="my-link" value={customAlias} onChange={(e) => setCustomAlias(e.target.value)}/>
           </label>
         </div>
       </form>

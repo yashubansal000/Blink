@@ -1,9 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-export async function shortenUrl(longUrl, expiresAt) {
+export async function shortenUrl(longUrl, expiresAt, customAlias) {
     const body = { long_url: longUrl };
-    if(expiresAt){
+    if (expiresAt){
         body.expires_at = new Date(expiresAt).toISOString();
+    }
+    if (customAlias){
+        body.customAlias = customAlias;
     }
     const res = await fetch(`${API_BASE}/api/shorten`, {
         method: "POST",

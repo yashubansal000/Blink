@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, HttpUrl
-# from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
 from datetime import datetime, timedelta, timezone
+import re
 
 from app.database import get_db
 from app.models.short_link import ShortLink
@@ -13,11 +14,12 @@ from app.services.cache import set_link_cache, invalidate_link_cache
 from app.services.ratelimit import is_rate_limited
 
 router = APIRouter()
-
+CUSTOM_ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 
 class ShortenRequest(BaseModel):
     long_url: HttpUrl
     expires_at: Optional[datetime] = None # absolute UTC timestamp
+    custom_alias: Optional[str] = None
 
 class ShortenResponse(BaseModel):
     short_code: str
@@ -49,22 +51,78 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at <= datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="expires_at must be in the future")
+            raise HTTPException(
+                status_code=400,
+                detail="expires_at must be in the future"
+            )
 
-    # Step 1: insert without short_code to get the auto-generated id
     try:
-        new_link = ShortLink(long_url=str(payload.long_url), created_by_ip=client_ip, expires_at=expires_at)
-        db.add(new_link)
-        db.commit()
-        db.refresh(new_link)    #populate the new_link object with the auto-generated id
+        if payload.custom_alias is not None:
+            alias = payload.custom_alias.strip()
 
-        # Step 2: encode the id, then update the row
-        short_code = encode(new_link.id)
+            if not CUSTOM_ALIAS_PATTERN.match(alias):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Alias must be 3-20 characters, letter/number/hyphen/underscores only",
+                )
 
-        new_link.short_code = short_code
-        db.commit()
-        #populate the new_link object with the auto-generated id
-        db.refresh(new_link)
+            existing = (
+                db.query(ShortLink)
+                .filter(ShortLink.short_code == alias)
+                .first()
+            )
+
+            if existing is not None:
+                raise HTTPException(
+                    short_code=409,
+                    detail="This alias is already taken."
+                )
+
+            # Step 1: insert without short_code to get the auto-generated id
+            try:
+                new_link = ShortLink(
+                    long_url=str(payload.long_url),
+                    created_by_ip=client_ip,
+                    expires_at=expires_at,
+                    short_code=alias,
+                )
+
+                db.add(new_link)
+                db.commit()
+                db.refresh(new_link)
+
+                short_code = alias
+
+            except IntegrityError:
+                db.rollback()
+                raise HTTPException(
+                    status_code=409,
+                    detail="This alias is already taken"
+                )
+
+        else:
+            new_link = ShortLink(
+                long_url=str(payload.long_url),
+                created_by_ip=client_ip,
+                expires_at=expires_at,
+            )
+
+            db.add(new_link)
+            db.commit()
+            db.refresh(new_link)
+            
+            try:    
+                short_code = encode(new_link.id)
+                new_link.short_code = short_code
+                db.commit()
+                db.refresh(new_link)
+
+            except IntegrityError:
+                db.rollback()
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Could not generate a unique code, plase try again"
+                )
 
         # Cache the mapping
         set_link_cache(
@@ -73,12 +131,19 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
             is_active=new_link.is_active,
             expires_at=new_link.expires_at.isoformat() if new_link.expires_at else None,
         )
+
+    except HTTPException:
+        raise
     
     except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Error occurred while creating short link")
+        raise HTTPException(
+            status_code=500,
+            detail="Error occurred while creating short link"
+        )
 
     base_url = str(request.base_url).rstrip("/")
+
     return ShortenResponse(
         short_code=short_code,
         short_url=f"{base_url}/{short_code}",

@@ -6,7 +6,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import get_db
 from app.models.short_link import ShortLink
 from app.utils.base62 import encode
+from app.utils.network import get_client_ip
 from app.services.cache import set_link_cache
+from app.services.ratelimit import is_rate_limited
 
 router = APIRouter()
 
@@ -20,8 +22,14 @@ class ShortenResponse(BaseModel):
 
 @router.post("/shorten", response_model=ShortenResponse)
 def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends(get_db)):
-    client_ip = request.client.host if request.client else None
+    client_ip = get_client_ip(request)
 
+    if is_rate_limited(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="TOO many links created. Please wait a minute and try again."
+        )
+    
     # Step 1: insert without short_code to get the auto-generated id
     try:
         new_link = ShortLink(long_url=str(payload.long_url), created_by_ip=client_ip)

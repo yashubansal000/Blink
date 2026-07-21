@@ -10,12 +10,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="URL Shortener", version="1.0.0")
 
-app.include_router(shorten.router, prefix="/api", tags=["Shorten"])
-app.include_router(redirect.router, tags=["Redirect"])
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://blink-ivory-sigma.vercel.app/"], # needs to tighten to your actual frontend URL once deployed
+    allow_origins=["https://blink-ivory-sigma.vercel.app"], # needs to tighten to your actual frontend URL once deployed
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(shorten.router, prefix="/api", tags=["Shorten"])
+app.include_router(redirect.router, tags=["Redirect"])

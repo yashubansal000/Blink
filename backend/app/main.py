@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from app.database import Base, engine
 from app.routes import shorten, redirect
@@ -9,6 +10,7 @@ from app.routes import shorten, redirect
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="URL Shortener", version="1.0.0")
+logging.basicConfig(level=logging.INFO)
 
 app.add_middleware(
     CORSMiddleware,

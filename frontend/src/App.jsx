@@ -12,10 +12,12 @@ function App() {
   const [expiresAt, setExpiresAt] = useState("");
   const [customAlias, setCustomAlias] = useState("");
   const [session, setSession] = useState(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
 
-  const loadLinks = async () => {
+  const loadLinks = async (currentSession) => {
     try {
-      const data = await fetchLinks();
+      const token = currentSession?.access_token || null;
+      const data = await fetchLinks(token); // fixed: token now actually passed
       setLinks(data);
     } catch (err) {
       console.error(err);
@@ -23,34 +25,39 @@ function App() {
   };
 
   useEffect(() => {
-    let ignore = false;
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setSessionLoaded(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
-    async function fetchInitialLinks() {
+  // Re-fetch links whenever session actually changes (login, logout, or the
+  // initial async resolve). The fetch is inlined here (rather than calling
+  // loadLinks directly) with an `ignore` guard, per React's recommended
+  // pattern for data-fetching effects -- avoids acting on a stale response
+  // if session changes again before this fetch resolves.
+  useEffect(() => {
+    if (!sessionLoaded) return;
+    let ignore = false;
+    const token = session?.access_token || null;
+
+    (async () => {
       try {
-        const data = await fetchLinks();
-        if (!ignore) {
-          setLinks(data);
-        }
+        const data = await fetchLinks(token);
+        if (!ignore) setLinks(data);
       } catch (err) {
-        if (!ignore) {
-          console.error(err);
-        }
+        if (!ignore) console.error(err);
       }
-    }
-    fetchInitialLinks();
+    })();
 
     return () => {
       ignore = true;
     };
-  }, []);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [session, sessionLoaded]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,17 +66,12 @@ function App() {
     setLoading(true);
     try {
       const token = session?.access_token || null;
-      const data = await shortenUrl(
-        longUrl, 
-        expiresAt || null,
-        customAlias || null,
-        token
-      );
+      const data = await shortenUrl(longUrl, expiresAt || null, customAlias || null, token);
       setResult(data);
       setLongUrl("");
       setExpiresAt("");
       setCustomAlias("");
-      await loadLinks();
+      await loadLinks(session);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -86,7 +88,7 @@ function App() {
           Logged in as {session.user.email}{" "}
           <button onClick={() => supabase.auth.signOut()}>Log out</button>
         </p>
-      ): (
+      ) : (
         <Auth onAuthed={() => {}} />
       )}
 
@@ -103,17 +105,17 @@ function App() {
           {loading ? "Shortening..." : "Shorten"}
         </button>
 
-        <div style={{marginTop: 8}}>
+        <div style={{ marginTop: 8 }}>
           <label>
             Expires at (optional):{" "}
-            <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)}/>
+            <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
           </label>
         </div>
 
         <div style={{ marginTop: 8 }}>
           <label>
             Custom alias (optional):{" "}
-            <input type="text" placeholder="my-link" value={customAlias} onChange={(e) => setCustomAlias(e.target.value)}/>
+            <input type="text" placeholder="my-link" value={customAlias} onChange={(e) => setCustomAlias(e.target.value)} />
           </label>
         </div>
       </form>
@@ -147,7 +149,7 @@ function App() {
                 {link.long_url}
               </td>
               <td>{link.click_count}</td>
-              <td>{link.expires_at ? new Date(link.expires_at).toLocaleString(): "Never"}</td>
+              <td>{link.expires_at ? new Date(link.expires_at).toLocaleString() : "Never"}</td>
             </tr>
           ))}
         </tbody>

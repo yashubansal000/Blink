@@ -10,17 +10,27 @@ function Auth({ onAuthed }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
-        const fn = mode == "login" ? supabase.auth.signInWithPassword : supabase.auth.signUp;
-        const { data, error } = await fn({ email, password });
-        if (error) {
-            setError(error.message);
-            return;
+
+        try {
+            const { data, error } =
+                mode === "login"
+                    ? await supabase.auth.signInWithPassword({ email, password })
+                    : await supabase.auth.signUp({ email, password });
+
+            if (error) {
+                setError(error.message);
+                return;
+            }
+
+            if (mode === "signup" && !data.session) {
+                setError("Check your email to confirm your account, then log in.");
+                return;
+            }
+
+            onAuthed();
+        } catch (err) {
+            setError("Something went wrong: " + err.message);
         }
-        if (mode == "signup" && !data.session) {
-            setError("Check your email to confirm your account, then log in.");
-            return;
-        }
-        onAuthed();
     };
 
     return (

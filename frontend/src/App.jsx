@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { shortenUrl, fetchLinks } from "./api";
+import { supabase } from "./supabaseClient";
+import Auth from "./Auth";
 
 function App() {
   const [longUrl, setLongUrl] = useState("");
@@ -9,6 +11,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
   const [customAlias, setCustomAlias] = useState("");
+  const [session, setSession] = useState(null);
 
   const loadLinks = async () => {
     try {
@@ -41,19 +44,31 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setResult(null);
     setLoading(true);
     try {
+      const token = session?.access_token || null;
       const data = await shortenUrl(
         longUrl, 
         expiresAt || null,
-        customAlias || null
+        customAlias || null,
+        token
       );
       setResult(data);
       setLongUrl("");
+      setExpiresAt("");
+      setCustomAlias("");
       await loadLinks();
     } catch (err) {
       setError(err.message);
@@ -65,6 +80,15 @@ function App() {
   return (
     <div style={{ maxWidth: 600, margin: "40px auto", fontFamily: "sans-serif" }}>
       <h1>URL Shortener</h1>
+
+      {session ? (
+        <p>
+          Logged in as {session.user.email}{" "}
+          <button onClick={() => supabase.auth.signOut()}>Log out</button>
+        </p>
+      ): (
+        <Auth onAuthed={() => {}} />
+      )}
 
       <form onSubmit={handleSubmit}>
         <input

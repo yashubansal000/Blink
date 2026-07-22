@@ -13,6 +13,7 @@ from app.utils.network import get_client_ip
 from app.services.cache import set_link_cache, invalidate_link_cache
 from app.services.ratelimit import is_rate_limited
 from app.services.safebrowsing import is_malicious_url
+from app.services.auth import get_current_user_id
 
 router = APIRouter()
 CUSTOM_ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -40,8 +41,11 @@ class LinkSummary(BaseModel):
 @router.post("/shorten", response_model=ShortenResponse)
 def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends(get_db)):
     client_ip = get_client_ip(request)
+    user_id = get_current_user_id(request)
 
-    if is_rate_limited(client_ip):
+    identifier = str(user_id) if user_id else client_ip
+
+    if is_rate_limited(identifier, is_authenticated=bool(user_id),):
         raise HTTPException(
             status_code=429,
             detail="TOO many links created. Please wait a minute and try again."
@@ -92,6 +96,7 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
                     created_by_ip=client_ip,
                     expires_at=expires_at,
                     short_code=alias,
+                    user_id=user_id,
                 )
 
                 db.add(new_link)
@@ -112,6 +117,7 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
                 long_url=str(payload.long_url),
                 created_by_ip=client_ip,
                 expires_at=expires_at,
+                user_id=user_id,
             )
 
             db.add(new_link)
@@ -159,8 +165,21 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
 
 #GET
 @router.get("/links", response_model=list[LinkSummary])
-def list_links(db: Session = Depends(get_db)):
-    links = (db.query(ShortLink).order_by(ShortLink.created_at.desc()).limit(50).all())
+def list_links(request: Request, mine: bool = False, db: Session = Depends(get_db)):
+    query = db.query(ShortLink).order_by(ShortLink.created_at.desc())
+
+    if mine:
+        user_id = get_current_user_id(request)
+        if user_id is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Login required to view your links",
+            )
+        
+        query = query.filter(ShortLink.user_id == user_id)
+
+    links = query.limit(50).all()
+    
     return [
         LinkSummary(
             short_code=link.short_code,

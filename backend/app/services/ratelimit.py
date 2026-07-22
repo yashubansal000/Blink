@@ -10,12 +10,13 @@ RATE_LIMIT_PREFIX = "ratelimit:"
 MAX_REQUESTS = 10       # max creates allowed
 WINDOW_SECONDS = 60     # per this many seconds, per IP
 
-def is_rate_limited(client_ip: str) -> bool:
+def is_rate_limited(identifier: str, is_authenticated: bool = False) -> bool:
     """
     Returns True if this IP has exceeded MAX_REQUESTS within WINDOW_SECONDS.
     Fixed-window counter: simpler than true token bucket, sufficient at this scale.
     """
-    key = f"{RATE_LIMIT_PREFIX}{client_ip}"
+    key = f"{RATE_LIMIT_PREFIX}{identifier}"
+    limit = 30 if is_authenticated else MAX_REQUESTS
 
     current_count = redis.incr(key)
 
@@ -23,4 +24,4 @@ def is_rate_limited(client_ip: str) -> bool:
         # first request in this window — set the window to expire
         redis.expire(key, WINDOW_SECONDS)
 
-    return current_count > MAX_REQUESTS
+    return current_count > limit

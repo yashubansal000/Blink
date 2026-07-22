@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-export async function shortenUrl(longUrl, expiresAt, customAlias) {
+export async function shortenUrl(longUrl, expiresAt, customAlias, token) {
     const body = { long_url: longUrl };
     if (expiresAt){
         body.expires_at = new Date(expiresAt).toISOString();
@@ -8,11 +8,13 @@ export async function shortenUrl(longUrl, expiresAt, customAlias) {
     if (customAlias){
         body.customAlias = customAlias;
     }
+
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    
     const res = await fetch(`${API_BASE}/api/shorten`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(body),
     });
     if(!res.ok) {

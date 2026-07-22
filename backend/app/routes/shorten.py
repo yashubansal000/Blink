@@ -40,6 +40,7 @@ class LinkSummary(BaseModel):
     expires_at: Optional[str] = None
     click_count: int
     is_active: bool
+    report_count: int
  
  
 # POST
@@ -211,22 +212,23 @@ def list_links(request: Request, db: Session = Depends(get_db)):
             expires_at=link.expires_at.isoformat() if link.expires_at else None,
             click_count=link.click_count,
             is_active=link.is_active,
+            report_count=link.report_count,
         )
         for link in links
     ]
  
  
 # PATCH
-@router.patch("/links/{short_code}/disable")
-def disable_link(short_code: str, db: Session = Depends(get_db)):
-    link = db.query(ShortLink).filter(ShortLink.short_code == short_code).first()
+# @router.patch("/links/{short_code}/disable")
+# def disable_link(short_code: str, db: Session = Depends(get_db)):
+#     link = db.query(ShortLink).filter(ShortLink.short_code == short_code).first()
  
-    if link is None:
-        raise HTTPException(status_code=404, detail="Link not found")
+#     if link is None:
+#         raise HTTPException(status_code=404, detail="Link not found")
  
-    link.is_active = False
-    db.commit()
+#     link.is_active = False
+#     db.commit()
  
-    invalidate_link_cache(short_code)
+#     invalidate_link_cache(short_code)
  
-    return {"short_code": short_code, "is_active": False}
+#     return {"short_code": short_code, "is_active": False}

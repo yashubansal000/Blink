@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.database import Base, engine
-from app.routes import shorten, redirect
+from app.routes import shorten, redirect, report
+from app.models import short_link, link_report
 
 # Creates the short_links table if it doesn't already exist.
 # Fine for now; once the schema stabilizes, switch to Alembic migrations.
@@ -24,4 +25,5 @@ app.add_middleware(
 )
 
 app.include_router(shorten.router, prefix="/api", tags=["Shorten"])
+app.include_router(report.router, prefix="/api", tags=["report"])
 app.include_router(redirect.router, tags=["Redirect"])

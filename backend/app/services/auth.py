@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")  # e.g. https://xxxx.supabase.co
 JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else None
@@ -16,6 +17,17 @@ JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else 
 # cache_keys=True avoids re-fetching the JWKS on every single request.
 _jwk_client = PyJWKClient(JWKS_URL, cache_keys=True) if JWKS_URL else None
 
+def verify_admin(request: Request) -> bool:
+    """
+    Simple shared-secret admin check. Not full RBAC -- a deliberate scope
+    choice for a project this size. The key is never sent to any client;
+    it's something only you (the operator) know and use via curl/Postman
+    or a private admin UI.
+    """
+    provided = request.headers.get("x-admin-key")
+    if not ADMIN_API_KEY:
+        return False
+    return provided == ADMIN_API_KEY
 
 def get_current_user_id(request: Request) -> str | None:
     """

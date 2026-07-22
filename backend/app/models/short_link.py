@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, BigInteger, String, Text, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.sql import func
 from app.database import Base
@@ -15,3 +15,4 @@ class ShortLink(Base):
     click_count = Column(BigInteger, default=0, nullable=False)
     created_by_ip = Column(INET, nullable=True)
     user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    report_count = Column(Integer, default=0, nullable=False)

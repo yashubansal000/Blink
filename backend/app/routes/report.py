@@ -1,13 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sql_func
 from pydantic import BaseModel
 
 from app.database import get_db
+
 from app.models.short_link import ShortLink
 from app.models.link_report import LinkReport
+from app.models.click_event import ClickEvent
+
 from app.services.cache import invalidate_link_cache
 from app.services.ratelimit import is_rate_limited
 from app.services.auth import verify_admin
+
 from app.utils.network import get_client_ip
 
 router = APIRouter()
@@ -113,3 +118,41 @@ def admin_disable_link(short_code: str, request: Request, db: Session = Depends(
     invalidate_link_cache(short_code)
 
     return {"short_code": short_code, "is_active": False}
+
+
+@router.get("/links/{short_code}/analytics")
+def link_analytics(short_code: str, db: Session = Depends(get_db)):
+    link = (
+        db.query(ShortLink)
+        .filter(ShortLink.short_code == short_code)
+        .first()
+    )
+
+    if link is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Link not found",
+        )
+    
+    daily_counts = (
+        db.query(
+            sql_func.date(ClickEvent.clicked_at).label("day"),
+            sql_func.count(ClickEvent.id).label("clicks"),
+        )
+        .filter(ClickEvent.short_code == short_code)
+        .group_by(sql_func.date(ClickEvent.clicked_at))
+        .order_by(sql_func.date(ClickEvent.clicked_at))
+        .all()
+    )
+
+    return {
+        "short_code": short_code,
+        "total_clicks": link.click_count,
+        "daily": [
+            {
+                "date": str(day),
+                "clicks": clicks,
+            }
+            for day, clicks in daily_counts
+        ],
+    }

@@ -1,12 +1,11 @@
+import re, time, logging, traceback
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import text
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
-from datetime import datetime, timedelta, timezone
-import re, time, logging, traceback
- 
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+
 from app.database import get_db
 from app.models.short_link import ShortLink
 from app.utils.base62 import encode
@@ -15,7 +14,9 @@ from app.services.cache import set_link_cache, invalidate_link_cache
 from app.services.ratelimit import is_rate_limited
 from app.services.safebrowsing import is_malicious_url
 from app.services.auth import get_current_user_id
- 
+from app.services.idgen import generate_id
+
+
 router = APIRouter()
 CUSTOM_ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 logger = logging.getLogger(__name__)
@@ -49,7 +50,8 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
     t0 = time.time()
     client_ip = get_client_ip(request)
     user_id = get_current_user_id(request)
-    t1 = time.time(); logger.info(f"auth+ip: {t1-t0:.3f}s")
+    
+    #t1 = time.time(); logger.info(f"auth+ip: {t1-t0:.3f}s")
  
     identifier = str(user_id) if user_id else client_ip
  
@@ -58,14 +60,16 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
             status_code=429,
             detail="Too many links created. Please wait a minute and try again.",
         )
-    t2 = time.time(); logger.info(f"rate_limit: {t2-t1:.3f}s")
+    
+    #t2 = time.time(); logger.info(f"rate_limit: {t2-t1:.3f}s")
  
     if is_malicious_url(str(payload.long_url)):
         raise HTTPException(
             status_code=400,
             detail="This URL has been flagged as unsafe by Google Safe Browsing and cannot be shortened.",
         )
-    t3 = time.time(); logger.info(f"safe_browsing: {t3-t2:.3f}s")
+    
+    #t3 = time.time(); logger.info(f"safe_browsing: {t3-t2:.3f}s")
  
     # Everything below is one single try block -- this is the structural fix.
     # A try must be immediately followed by its own except/finally; two stacked
@@ -108,7 +112,10 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
                 )
  
             try:
+                next_id = generate_id()
+
                 new_link = ShortLink(
+                    id = next_id,
                     long_url=str(payload.long_url),
                     created_by_ip=client_ip,
                     expires_at=expires_at,
@@ -119,20 +126,22 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
                 db.commit()
                 db.refresh(new_link)
                 short_code = alias
+
             except IntegrityError:
                 db.rollback()
                 raise HTTPException(
                     status_code=409,
                     detail="This alias is already taken",
                 )
-            t4 = time.time(); logger.info(f"db_insert: {t4-t3:.3f}s")
+            
+            #t4 = time.time(); logger.info(f"db_insert: {t4-t3:.3f}s")
  
         else:
             try:
                 # Pull the next id from Postgres's sequence before inserting,
                 # so short_code can be computed and set in the SAME insert --
                 # one round trip instead of insert-then-update-then-commit-again.
-                next_id = db.execute(text("SELECT nextval('short_links_id_seq')")).scalar()
+                next_id = generate_id()
                 short_code = encode(next_id)
  
                 new_link = ShortLink(
@@ -146,13 +155,15 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
                 db.add(new_link)
                 db.commit()
                 db.refresh(new_link)
+
             except IntegrityError:
                 db.rollback()
                 raise HTTPException(
                     status_code=500,
                     detail="Could not generate a unique code, please try again",
                 )
-            t4 = time.time(); logger.info(f"db_insert: {t4-t3:.3f}s")
+            
+            #t4 = time.time(); logger.info(f"db_insert: {t4-t3:.3f}s")
  
         set_link_cache(
             short_code=new_link.short_code,
@@ -160,8 +171,9 @@ def shorten_url(payload: ShortenRequest, request: Request, db: Session = Depends
             is_active=new_link.is_active,
             expires_at=new_link.expires_at.isoformat() if new_link.expires_at else None,
         )
-        t5 = time.time(); logger.info(f"cache_set: {t5-t4:.3f}s")
-        logger.info(f"TOTAL: {t5-t0:.3f}s")
+        
+        #t5 = time.time(); logger.info(f"cache_set: {t5-t4:.3f}s")
+        #logger.info(f"TOTAL: {t5-t0:.3f}s")
  
     except HTTPException:
         raise

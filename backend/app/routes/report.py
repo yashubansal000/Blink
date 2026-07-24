@@ -15,6 +15,8 @@ from app.services.auth import verify_admin
 
 from app.utils.network import get_client_ip
 
+from app.workers.cleanup import disable_expired_links
+
 router = APIRouter()
 
 AUTO_DISABLE_THRESHOLD = 5
@@ -22,6 +24,14 @@ AUTO_DISABLE_THRESHOLD = 5
 
 class ReportRequest(BaseModel):
     reason: str
+
+@router.post("/admin/cleanup/run")
+def trigger_cleanup(request: Request):
+    if not verify_admin(request):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    count = disable_expired_links()
+    return {"disabled_count": count}
 
 
 @router.post("/links/{short_code}/report")

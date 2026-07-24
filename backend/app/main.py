@@ -7,6 +7,7 @@ from app.database import Base, engine
 from app.routes import shorten, redirect, report
 from app.models import short_link, link_report, click_event
 from app.workers.analytics import run_analytics_worker
+from app.workers.cleanup import run_cleanup_worker
 
 # Creates the short_links table if it doesn't already exist.
 # Fine for now; once the schema stabilizes, switch to Alembic migrations.
@@ -17,14 +18,21 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def start_background_workers(app: FastAPI):
-    worker = asyncio.create_task(run_analytics_worker())
+    analytics_worker = asyncio.create_task(run_analytics_worker())
+    cleanup_worker = asyncio.create_task(run_cleanup_worker())
 
     try:
         yield
     finally:
-        worker.cancel()
+        analytics_worker.cancel()
+        cleanup_worker.cancel()
         try:
-            await worker
+            await analytics_worker
+        except asyncio.CancelledError:
+            pass
+
+        try:
+            await cleanup_worker
         except asyncio.CancelledError:
             pass
 
